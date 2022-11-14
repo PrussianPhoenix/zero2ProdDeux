@@ -1,6 +1,6 @@
 //! tests/health_check.rs
+use sqlx::{Connection, PgConnection};
 use std::net::TcpListener;
-use sqlx::{PgConnection, Connection};
 use zero2Prod::configuration::get_configuration;
 
 //use zero2Prod::main;
@@ -12,9 +12,9 @@ use zero2Prod::configuration::get_configuration;
 // `cargo expand --test health_check` (<- name of the test file)
 
 #[tokio::test]
-async fn health_check_works(){
+async fn health_check_works() {
     // Arrange
-    let address= spawn_app();
+    let address = spawn_app();
     // no .await.expect("Failed to spawn our app.");
 
     // We need to bring in 'reqwest'
@@ -41,8 +41,7 @@ async fn health_check_works(){
 // all the things.
 fn spawn_app() -> String {
     //zero2Prod::run().await
-    let listener = TcpListener::bind("127.0.0.1:0")
-                    .expect("Failed to bind random port");
+    let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
     // We retrieve the port assigned to us by the OS
     let port = listener.local_addr().unwrap().port();
 
@@ -53,13 +52,12 @@ fn spawn_app() -> String {
     let _ = tokio::spawn(server);
     // We return the application address to the caller!
     format!("http://127.0.0.1:{}", port)
-
 }
 
 // Implement retrieval of a name and email address
 // 200 success, 400 failure
 #[tokio::test]
-async fn subscribe_returns_200_for_valid_form_data(){
+async fn subscribe_returns_200_for_valid_form_data() {
     //Arrange
     let app_address = spawn_app();
     let configuration = get_configuration().expect("Failed to read configuration");
@@ -75,7 +73,7 @@ async fn subscribe_returns_200_for_valid_form_data(){
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
     let response = client
         .post(&format!("{}/subscriptions", &app_address))
-        .header("Content-Type","application/x-www-form-urlencoded")
+        .header("Content-Type", "application/x-www-form-urlencoded")
         .body(body)
         .send()
         .await
@@ -95,13 +93,15 @@ async fn subscribe_returns_200_for_valid_form_data(){
 
 //table driven test - parametrised test
 #[tokio::test]
-async fn subscribe_returns_400_when_data_is_missing(){
+async fn subscribe_returns_400_when_data_is_missing() {
     //Arrange
     let app_address = spawn_app();
     let client = reqwest::Client::new();
-    let test_cases = vec![("name=le%20guin", "missing the email"),
-                          ("email=ursula_le_guin%40gmail.com","missing the name"),
-                          ("", "missing both name and email")];
+    let test_cases = vec![
+        ("name=le%20guin", "missing the email"),
+        ("email=ursula_le_guin%40gmail.com", "missing the name"),
+        ("", "missing both name and email"),
+    ];
 
     for (invalid_body, error_message) in test_cases {
         // Act
@@ -114,10 +114,12 @@ async fn subscribe_returns_400_when_data_is_missing(){
             .expect("Failed to execute request.");
 
         // Assert
-        assert_eq!(400,
-        response.status().as_u16(),
-        // Additional customised error message on test failure
-        "The API did not fail with 400 Bad Request when the payload was {}.",
-        error_message);
+        assert_eq!(
+            400,
+            response.status().as_u16(),
+            // Additional customised error message on test failure
+            "The API did not fail with 400 Bad Request when the payload was {}.",
+            error_message
+        );
     }
 }

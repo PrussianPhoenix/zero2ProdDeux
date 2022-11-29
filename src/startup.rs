@@ -2,7 +2,7 @@ use actix_web::dev::Server;
 use actix_web::{web, App, HttpServer};
 use std::net::TcpListener;
 use sqlx::{PgPool};
-use actix_web::middleware::Logger;
+use tracing_actix_web::TracingLogger;
 
 use crate::routes::{health_check, subscribe};
 
@@ -36,7 +36,7 @@ pub fn run(
     let server = HttpServer::new(move || {
         App::new()
             // middleware is added by using .wrap() on an app
-            .wrap(Logger::default())
+            .wrap(TracingLogger::default())
             .route("/health_check", web::get().to(health_check))
             // A new entry in our routing table for POST /subscriptions requests
             .route("/subscriptions", web::post().to(subscribe))

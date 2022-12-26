@@ -1,0 +1,7 @@
+ to access cloud db, port forward your fly postgres db as shown below
+ to access via localhost 6543
+ fly proxy 6543:5432 -a zero2prodrusttutorial-db
+
+when the proxy is running you are able to execute "sqlx migrate run"
+if your .env database url is configured to hit the localhost
+and the right table name in your cloud db

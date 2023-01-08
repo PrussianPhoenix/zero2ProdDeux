@@ -5,6 +5,8 @@ use sqlx::{PgPool};
 use tracing_actix_web::TracingLogger;
 
 use crate::routes::{health_check, subscribe};
+use actix_web::{ HttpRequest, Responder};
+
 
 // We need to mark `run` as public.
 // It is no longer a binary entrypoint, therefore we can mark it as async
@@ -20,6 +22,11 @@ pub async fn run() -> std::io::Result<()> {
         .await
 }
 */
+
+async fn greet(req: HttpRequest) -> impl Responder {
+    let name = req.match_info().get("name").unwrap_or("World");
+    format!("Hello {}!", &name)
+}
 
 // Notice the different signature!
 // We return `Server` on the happy path and we dropped the `async` keyword
@@ -40,6 +47,7 @@ pub fn run(
             .route("/health_check", web::get().to(health_check))
             // A new entry in our routing table for POST /subscriptions requests
             .route("/subscriptions", web::post().to(subscribe))
+            .route("/{name}", web::get().to(greet))
             // Get a pointer copy and attach it to the application state
             .app_data(db_pool.clone())
     })

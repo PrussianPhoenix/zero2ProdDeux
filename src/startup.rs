@@ -1,8 +1,13 @@
 use actix_web::dev::Server;
 use actix_web::{web, App, HttpServer};
 use std::net::TcpListener;
+use sqlx::{PgPool};
+use tracing_actix_web::TracingLogger;
 
 use crate::routes::{health_check, subscribe};
+use actix_web::{ HttpRequest, Responder};
+use crate::email_client::EmailClient;
+
 
 // We need to mark `run` as public.
 // It is no longer a binary entrypoint, therefore we can mark it as async
@@ -19,16 +24,36 @@ pub async fn run() -> std::io::Result<()> {
 }
 */
 
+async fn greet(req: HttpRequest) -> impl Responder {
+    let name = req.match_info().get("name").unwrap_or("World");
+    format!("Hello {}!", &name)
+}
+
 // Notice the different signature!
 // We return `Server` on the happy path and we dropped the `async` keyword
 // We have no .await call, so it is not needed anymore.
 
-pub fn run(listener: TcpListener) -> Result<Server, std::io::Error> {
-    let server = HttpServer::new(|| {
+pub fn run(
+    listener: TcpListener,
+    db_pool: PgPool,
+    email_client: EmailClient,
+) -> Result<Server, std::io::Error> {
+    // Wrap the connection in a smart pointer
+    // Wrap the pool using web::data, which boils down to an Arc smart pointer
+    let db_pool = web::Data::new(db_pool);
+    let email_client = web::Data::new(email_client);
+    // Capture 'connection' from the surrounding environment
+    let server = HttpServer::new(move || {
         App::new()
+            // middleware is added by using .wrap() on an app
+            .wrap(TracingLogger::default())
             .route("/health_check", web::get().to(health_check))
             // A new entry in our routing table for POST /subscriptions requests
             .route("/subscriptions", web::post().to(subscribe))
+            .route("/{name}", web::get().to(greet))
+            // Get a pointer copy and attach it to the application state
+            .app_data(db_pool.clone())
+            .app_data(email_client.clone())
     })
     .listen(listener)?
     .run();

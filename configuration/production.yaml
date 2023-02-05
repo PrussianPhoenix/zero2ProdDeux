@@ -3,3 +3,9 @@ application:
 
 database:
   require_ssl: true
+
+email_client:
+  #value retrieved form postmarks api docs
+  base_url: "https://api.postmark.app.com"
+  #use the single sender email you authorised on postmark
+  sender_email: ""

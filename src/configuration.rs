@@ -2,11 +2,13 @@ use secrecy::{ExposeSecret, Secret};
 use serde_aux::field_attributes::deserialize_number_from_string;
 use sqlx::postgres::{PgConnectOptions, PgSslMode};
 use sqlx::ConnectOptions;
+use crate::domain::SubscriberEmail;
 // define the actix web server + Postgres DB configs
 #[derive(serde::Deserialize)]
 pub struct Settings {
     pub database: DatabaseSettings,
     pub application: ApplicationSettings,
+    pub email_client: EmailClientSettings,
 }
 
 #[derive(serde::Deserialize)]
@@ -17,7 +19,7 @@ pub struct DatabaseSettings {
     pub port: u16,
     pub host: String,
     pub database_name: String,
-    //deterimine if we demand the conection to be encrypted or not
+    //determine if we demand the conection to be encrypted or not
     pub require_ssl: bool,
 }
 
@@ -26,6 +28,25 @@ pub struct ApplicationSettings {
     #[serde(deserialize_with = "deserialize_number_from_string")]
     pub port: u16,
     pub host: String,
+}
+
+#[derive(serde::Deserialize)]
+pub struct EmailClientSettings {
+    pub base_url: String,
+    pub sender_email: String,
+    // new (secret) configuration value
+    pub authorization_token: Secret<String>,
+    // new config value
+    pub timeout_milliseconds: u64,
+}
+
+impl EmailClientSettings {
+    pub fn sender(&self) -> Result<SubscriberEmail, String> {
+        SubscriberEmail::parse(self.sender_email.clone())
+    }
+    pub fn timeout(&self) -> std::time::Duration {
+        std::time::Duration::from_millis(self.timeout_milliseconds)
+    }
 }
 
 // add connection string method to the database settings struct

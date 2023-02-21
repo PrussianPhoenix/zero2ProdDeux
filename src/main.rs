@@ -1,4 +1,4 @@
-use actix_web::{HttpRequest, Responder};
+use actix_web::{App, HttpRequest, Responder};
 use std::net::TcpListener;
 use secrecy::ExposeSecret;
 use sqlx::PgPool;
@@ -13,7 +13,7 @@ async fn greet(req: HttpRequest) -> impl Responder {
 }
 
 use zero2Prod::startup::run;
-
+use zero2Prod::startup::{Application};
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -21,6 +21,7 @@ async fn main() -> std::io::Result<()> {
     init_subscriber(subscriber);
 
     let configuration = get_configuration().expect("Failed to read configuration");
+    /*
     // Renamed!
     let connection_pool = PgPoolOptions::new().acquire_timeout(std::time::Duration::from_secs(2))
         .connect_lazy_with(configuration.database.connection_string());
@@ -45,5 +46,13 @@ async fn main() -> std::io::Result<()> {
     // Bubble up the io::Error if we failed to bind the address
     // Otherwise call .await on our Server
     let listener = TcpListener::bind(address)?;
-    run(listener, connection_pool, email_client)?.await
+    run(listener, connection_pool, email_client)?.await?;
+
+    let server = build(configuration).await?;
+    server.await?;
+    */
+    let application = Application::build(configuration)
+        .await?;
+    application.run_until_stopped().await?;
+    Ok(())
 }

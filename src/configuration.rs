@@ -4,14 +4,14 @@ use sqlx::postgres::{PgConnectOptions, PgSslMode};
 use sqlx::ConnectOptions;
 use crate::domain::SubscriberEmail;
 // define the actix web server + Postgres DB configs
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Clone)]
 pub struct Settings {
     pub database: DatabaseSettings,
     pub application: ApplicationSettings,
     pub email_client: EmailClientSettings,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Clone)]
 pub struct DatabaseSettings {
     pub username: String,
     pub password: Secret<String>,
@@ -23,14 +23,14 @@ pub struct DatabaseSettings {
     pub require_ssl: bool,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Clone)]
 pub struct ApplicationSettings {
     #[serde(deserialize_with = "deserialize_number_from_string")]
     pub port: u16,
     pub host: String,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Clone)]
 pub struct EmailClientSettings {
     pub base_url: String,
     pub sender_email: String,
@@ -52,17 +52,17 @@ impl EmailClientSettings {
 // add connection string method to the database settings struct
 
 impl DatabaseSettings {
-    pub fn connection_string(&self) -> PgConnectOptions {
+    pub fn with_db(&self) -> PgConnectOptions {
         /*
         Secret::new(format!(
             "postgres://{}:{}@{}:{}/{}",
             self.username, self.password.expose_secret(), self.host, self.port, self.database_name
         ))*/
-        let mut options = self.connection_string_without_db().database(&self.database_name);
+        let mut options = self.without_db().database(&self.database_name);
         options.log_statements(tracing::log::LevelFilter::Trace);
         options
     }
-    pub fn connection_string_without_db(&self) -> PgConnectOptions {
+    pub fn without_db(&self) -> PgConnectOptions {
         /*
         Secret::new(format!(
             "postgres://{}:{}@{}:{}",

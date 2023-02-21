@@ -8,6 +8,9 @@ use crate::routes::{health_check, subscribe};
 use actix_web::{ HttpRequest, Responder};
 use crate::email_client::EmailClient;
 
+use crate::configuration::{get_configuration, Settings, DatabaseSettings};
+use sqlx::postgres::PgPoolOptions;
+
 
 // We need to mark `run` as public.
 // It is no longer a binary entrypoint, therefore we can mark it as async
@@ -27,6 +30,53 @@ pub async fn run() -> std::io::Result<()> {
 async fn greet(req: HttpRequest) -> impl Responder {
     let name = req.match_info().get("name").unwrap_or("World");
     format!("Hello {}!", &name)
+}
+
+pub struct Application {
+    port: u16,
+    server: Server,
+}
+
+impl Application {
+
+    pub async fn build(configuration: Settings) -> Result<Self, std::io::Error> {
+        /*let connection_pool = PgPoolOptions::new()
+            .acquire_timeout(std::time::Duration::from_secs(2))
+            .connect_lazy_with(configuration.database.with_db());
+        */
+        let connection_pool = get_connection_pool(&configuration.database);
+        let sender_email = configuration.email_client.sender().expect("Invalid sender email address.");
+        let timeout = configuration.email_client.timeout();
+        let email_client = EmailClient::new(configuration.email_client.base_url,
+                                            sender_email,
+                                            configuration.email_client.authorization_token,
+                                            timeout,
+        );
+
+        let address = format!("{}:{}", configuration.application.host ,configuration.application.port);
+        // Bubble up the io::Error if we failed to bind the address
+        // Otherwise call .await on our Server
+        let listener = TcpListener::bind(address)?;
+        let port = listener.local_addr().unwrap().port();
+        let server = run(listener, connection_pool, email_client)?;
+
+        Ok(Self {port, server})
+    }
+
+    pub fn port(&self) -> u16 {
+        self.port
+    }
+
+    //expressive function that returns when the application is stopped
+    pub async fn run_until_stopped(self) -> Result <(), std::io::Error> {
+        self.server.await
+    }
+}
+
+pub fn get_connection_pool(configuration: &DatabaseSettings) ->PgPool {
+    PgPoolOptions::new()
+        .acquire_timeout(std::time::Duration::from_secs(2))
+        .connect_lazy_with(configuration.with_db())
 }
 
 // Notice the different signature!

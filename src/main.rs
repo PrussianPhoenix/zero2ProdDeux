@@ -6,6 +6,7 @@ use sqlx::postgres::PgPoolOptions;
 use zero2Prod::configuration::get_configuration;
 use zero2Prod::telemetry::{get_subscriber,init_subscriber};
 use zero2Prod::email_client::EmailClient;
+use std::env;
 
 async fn greet(req: HttpRequest) -> impl Responder {
     let name = req.match_info().get("name").unwrap_or("World");
@@ -13,7 +14,7 @@ async fn greet(req: HttpRequest) -> impl Responder {
 }
 
 use zero2Prod::startup::run;
-use zero2Prod::startup::{Application};
+use zero2Prod::startup::Application;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {

@@ -101,7 +101,7 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
         .add_source(
             config::File::from(configuration_directory.join("base.yaml"))
         )
-        .add_source(config::File::from(configuration_directory.join(&environment_filename)))
+        .add_source(config::File::from(configuration_directory.join(environment_filename)))
         // Add in settings from environment variables (with a prefix of APP and
         // '__' as separator)
         // E.g. 'APP_APPLICATION_PORT=5001 would set 'Settings.application.port'

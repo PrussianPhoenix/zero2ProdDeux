@@ -40,6 +40,7 @@ unicode-segmentation = "1"
 validator = "0.14"
 rand = {version = "0.8.0", features=["std_rng"]}
 thiserror = "1"
+anyhow = "1"
 
 # We need the optional `derive` feature to use `serde`'s procedural macros:
 # `#[derive(Serialize)]` and `#[derive(Deserialize)]`.

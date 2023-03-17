@@ -4,7 +4,7 @@ use std::net::TcpListener;
 use sqlx::{PgPool};
 use tracing_actix_web::TracingLogger;
 
-use crate::routes::{health_check, send_confirmation_email, subscribe};
+use crate::routes::{health_check, send_confirmation_email, subscribe, publish_newsletter};
 use actix_web::{ HttpRequest, Responder};
 use actix_web::web::Data;
 use crate::email_client::EmailClient;
@@ -114,6 +114,7 @@ pub fn run(
             // A new entry in our routing table for POST /subscriptions requests
             .route("/subscriptions", web::post().to(subscribe))
             .route("/subscriptions/confirm", web::get().to(confirm))
+            .route("/newsletters", web::post().to(publish_newsletter))
             .route("/{name}", web::get().to(greet))
             // Get a pointer copy and attach it to the application state
             .app_data(db_pool.clone())

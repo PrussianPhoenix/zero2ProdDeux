@@ -1,5 +1,6 @@
 use std::any::TypeId;
 use std::backtrace::Backtrace;
+use std::borrow::Borrow;
 use std::error::Error;
 use std::fmt::{Display, Formatter, write};
 use actix_web::{web, HttpResponse};
@@ -130,7 +131,7 @@ pub async fn send_confirmation_email(
 
     email_client
         .send_email(
-            new_subscriber.email,
+            new_subscriber.email.borrow(),
             "Welcome!",
             &html_body,
             &plain_body,
@@ -267,7 +268,7 @@ impl std::fmt::Debug for StoreTokenError {
     }
 }
 
-fn error_chain_fmt(
+pub fn error_chain_fmt(
     e: &impl Error,
     f: &mut Formatter<'_>,
 )-> std::fmt::Result {

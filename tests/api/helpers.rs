@@ -8,6 +8,9 @@ use zero2Prod::email_client::EmailClient;
 use zero2Prod::telemetry::{get_subscriber, init_subscriber};
 use zero2Prod::startup::{get_connection_pool, Application};
 use wiremock::MockServer;
+//use sha3::Digest;
+use argon2::password_hash::SaltString;
+use argon2::{Argon2, PasswordHasher};
 
 // Ensure that the 'tracing' stack is only initialised once using 'once_cell'
 static TRACING: Lazy<()> = Lazy::new(|| {
@@ -44,6 +47,7 @@ pub struct TestApp {
     pub email_server: MockServer,
     //new field for test only
     pub port: u16,
+    test_user: TestUser,
 }
 
 impl TestApp {
@@ -95,10 +99,23 @@ impl TestApp {
     ) -> reqwest::Response {
         reqwest::Client::new()
             .post(&format!("{}/newsletters", &self.address))
+            // random credentials
+            // 'reqwest' does all the encoding/formatting heavy-lifting
+            //.basic_auth(Uuid::new_v4().to_string(), Some(Uuid::new_v4().to_string()))
+            .basic_auth(&self.test_user.username, Some(&self.test_user.password))
             .json(&body)
             .send()
             .await
             .expect("Failed to execute request.")
+    }
+
+    //retrieve username and password
+    pub async fn test_user(&self) -> (String, String) {
+        let row = sqlx::query!("SELECT username, password_hash FROM users LIMIT 1",)
+            .fetch_one(&self.db_pool)
+            .await
+            .expect("Failed to create test users.");
+        (row.username, row.password_hash)
     }
 }
 
@@ -162,12 +179,15 @@ pub async fn spawn_app() -> TestApp {
     // tokio::spawn returns a handle to the spawned future,
     // but we have no use for it here, hence the non-binding let
     let _ = tokio::spawn(application.run_until_stopped());
-    TestApp {
+    let test_app = TestApp {
         address: format!("http://localhost:{}", application_port),
         db_pool: get_connection_pool(&configuration.database),
         email_server,
         port: application_port,
-    }
+        test_user: TestUser::generate(),
+    };
+    test_app.test_user.store(&test_app.db_pool).await;
+    test_app
     // We return the application address to the caller!
     //format!("http://127.0.0.1:{}", port)
 }
@@ -193,4 +213,46 @@ async fn configure_database(config: &DatabaseSettings) -> PgPool {
         .await
         .expect("Failed to migrate the database");
     connection_pool
+}
+
+pub struct TestUser {
+    pub user_id: Uuid,
+    pub username: String,
+    pub password: String
+}
+
+impl TestUser {
+    pub fn generate() -> Self {
+        Self {
+            user_id: Uuid::new_v4(),
+            username: Uuid::new_v4().to_string(),
+            password: Uuid::new_v4().to_string()
+        }
+    }
+
+    async fn store(&self, pool: &PgPool) {
+        let salt = SaltString::generate(&mut rand::thread_rng());
+        // we dont care about the exact Argon2 parameters here
+        // given that it's for testing purposes!
+        let password_hash = Argon2::default()
+            .hash_password(self.password.as_bytes(), &salt)
+            .unwrap()
+            .to_string();
+       /*
+        let password_hash = sha3::Sha3_256::digest(
+            self.password.as_bytes()
+        );
+        let password_hash = format!("{:x}", password_hash);
+        */
+        sqlx::query!(
+            "INSERT INTO users (user_id, username, password_hash)\
+            VALUES ($1, $2, $3)",
+            self.user_id,
+            self.username,
+            password_hash,
+        )
+            .execute(pool)
+            .await
+            .expect("Failed to store test user.");
+    }
 }

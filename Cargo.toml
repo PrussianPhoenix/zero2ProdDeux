@@ -41,6 +41,8 @@ validator = "0.14"
 rand = {version = "0.8.0", features=["std_rng"]}
 thiserror = "1"
 anyhow = "1"
+base64 = "0.21"
+argon2 = {version ="0.4", features = ["std"]}
 
 # We need the optional `derive` feature to use `serde`'s procedural macros:
 # `#[derive(Serialize)]` and `#[derive(Deserialize)]`.

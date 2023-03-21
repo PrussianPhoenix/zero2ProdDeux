@@ -19,6 +19,8 @@ use secrecy::ExposeSecret;
 //use argon2::{Algorithm, Argon2, Version, Params};
 //use argon2::PasswordHasher;
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
+use crate::telemetry::spawn_blocking_with_tracing;
+use crate::authentication::AuthError;
 
 
 #[derive(thiserror::Error)]
@@ -73,7 +75,7 @@ impl ResponseError for PublishError{
 async fn validate_credentials(
     credentials: Credentials,
     pool: &PgPool,
-) -> Result<uuid::Uuid, PublishError> {
+) -> Result<uuid::Uuid, AuthError> {
     /*
     let hasher = Argon2::new(
         Algorithm::Argon2id,
@@ -83,23 +85,50 @@ async fn validate_credentials(
             .map_err(PublishError::UnexpectedError)?,
     );
     */
+    let mut user_id = None;
+    let mut expected_password_hash = Secret::new(
+        "$argon2id$v=19$m=15000,t=2,p=1$\
+        gZiV/M1gPc22ElAH/Jh1Hw$\
+        CWOrkoo7oJBQ/iyh7uJ0LO2aLEfrHwTWllSAxT0zRno".to_string()
+    );
 
-    let ( user_id, expected_password_hash) = get_stored_credentials(
+    if let Some(( stored_user_id, stored_password_hash)) = get_stored_credentials(
         &credentials.username,
         &pool,
     )
-    .await
-    .map_err(PublishError::UnexpectedError)?
-    .ok_or_else(|| {
-        PublishError::AuthError(anyhow::anyhow!("Unknown username."))
-    })?;
+    .await?
+    //.map_err(PublishError::UnexpectedError)?
+    {
+        user_id = Some(stored_user_id);
+        expected_password_hash = stored_password_hash;
+    }
 
-    let expected_password_hash = PasswordHash::new(
-        &expected_password_hash.expose_secret()
-    )
-        .context("Failed to hash password")
-        .map_err(PublishError::UnexpectedError)?;
+    //    .ok_or_else(|| {
+    //    PublishError::AuthError(anyhow::anyhow!("Unknown username."))
+    //})?;
+    /*
+        let ( user_id, expected_password_hash) = get_stored_credentials(
+            &credentials.username,
+            &pool,
+        )
+        .await
+        .map_err(PublishError::UnexpectedError)?
+        .ok_or_else(|| {
+            PublishError::AuthError(anyhow::anyhow!("Unknown username."))
+        })?;
+    */
 
+    // execute before spawning the new thread
+    spawn_blocking_with_tracing(move || {
+        //pass ownership to it into the closure
+        // and explicitly execute all our computation within its scope.
+        verify_password_hash(expected_password_hash, credentials.password)
+    })
+        .await
+        //spawn blocking is fallible -we have a nested result here
+        .context("Failed to spawn a blocking task.")??;
+        //.map_err(PublishError::UnexpectedError)??;
+    /*
     tracing::info_span!("Verify password hash")
         .in_scope(|| {
             Argon2::default()
@@ -110,8 +139,22 @@ async fn validate_credentials(
         })
         .context("Invalid password.")
         .map_err(PublishError::AuthError)?;
+    */
 
-    Ok(user_id)
+    // this is only set to 'some' if we found credentials in the store
+    // so, even if the default password ends up matching (somehow)
+    // with the provided password,
+    // we never authenticate a non-existing user.
+    // You can easily add a unit test for that precise scenario.
+    /*
+    user_id.ok_or_else(||
+        PublishError::AuthError(anyhow::anyhow!("Unknown username."))
+    )
+    */
+
+    user_id.ok_or_else(|| anyhow::anyhow!("Unknown username."))
+        .map_err(AuthError::InvalidCredentials)
+
     /*
     let password_hash = hasher.hash_password(
         credentials.password.expose_secret().as_bytes(),
@@ -153,6 +196,26 @@ async fn get_stored_credentials(
     Ok(row)
 }
 
+// move ownership of the password hash & parsing logic
+#[tracing::instrument(name= "Verify password hash", skip(expected_password_hash, password_candidate))]
+fn verify_password_hash(
+    expected_password_hash: Secret<String>,
+    password_candidate: Secret<String>,
+) -> Result<(), AuthError> {
+    let expected_password_hash = PasswordHash::new(
+        &expected_password_hash.expose_secret()
+    )
+        .context("Failed to parse hash in PHC string format.")?;
+       // .map_err(PublishError::UnexpectedError)?;
+
+    Argon2::default()
+        .verify_password(
+            password_candidate.expose_secret().as_bytes(),
+            &expected_password_hash,
+        ).context("Invalid password.")
+        .map_err(AuthError::InvalidCredentials)
+}
+
 //dummy implementation
 //prefix _ to avoid unused variable compiler complaint
 pub async fn publish_newsletter(body: web::Json<BodyData>,
@@ -167,7 +230,15 @@ pub async fn publish_newsletter(body: web::Json<BodyData>,
         "username",
         &tracing::field::display(&credentials.username)
     );
-    let user_id = validate_credentials(credentials, &pool).await?;
+    let user_id = validate_credentials(credentials, &pool).await
+        // we match on 'authError' vairants, but we pass the *whole* error
+        // into the constructors for 'PublishError' Variants. This ensures that
+        // the context of the top-level wrapper is preserved when the error is
+        // logged by our middleware
+        .map_err(|e| match e {
+            AuthError::InvalidCredentials(_) => PublishError::AuthError(e.into()),
+            AuthError::UnexpectedError(_) => PublishError::UnexpectedError(e.into()),
+        })?;
 
     tracing::Span::current().record("user_id", &tracing::field::display(&user_id));
     let subscribers = get_confirmed_subscribers(&pool).await?;

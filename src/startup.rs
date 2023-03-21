@@ -12,6 +12,9 @@ use crate::email_client::EmailClient;
 use crate::configuration::{get_configuration, Settings, DatabaseSettings};
 use sqlx::postgres::PgPoolOptions;
 use crate::routes::confirm;
+use crate::routes::home;
+use crate::routes::login_form;
+use crate::routes::login;
 
 
 // We need to mark `run` as public.
@@ -115,7 +118,9 @@ pub fn run(
             .route("/subscriptions", web::post().to(subscribe))
             .route("/subscriptions/confirm", web::get().to(confirm))
             .route("/newsletters", web::post().to(publish_newsletter))
-            .route("/{name}", web::get().to(greet))
+            //.route("/{name}", web::get().to(greet))
+            .route("/", web::get().to(home))
+            .route("/login", web::post().to(login))
             // Get a pointer copy and attach it to the application state
             .app_data(db_pool.clone())
             .app_data(email_client.clone())

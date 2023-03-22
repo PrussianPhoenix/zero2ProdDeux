@@ -1,6 +1,8 @@
 application:
   host: 0.0.0.0
 
+  #add env variable for the secret hash to fly io
+
 database:
   require_ssl: true
 

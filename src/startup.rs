@@ -15,6 +15,7 @@ use crate::routes::confirm;
 use crate::routes::home;
 use crate::routes::login_form;
 use crate::routes::login;
+use secrecy::Secret;
 
 
 // We need to mark `run` as public.
@@ -65,7 +66,8 @@ impl Application {
         let port = listener.local_addr().unwrap().port();
         let server = run(listener, connection_pool, email_client,
         // new parameter
-        configuration.application.base_url,)?;
+        configuration.application.base_url,
+        configuration.application.hmac_secret,)?;
 
         Ok(Self {port, server})
     }
@@ -102,6 +104,7 @@ pub fn run(
     email_client: EmailClient,
     // new parameter
     base_url: String,
+    hmac_secret: Secret<String>,
 ) -> Result<Server, std::io::Error> {
     // Wrap the connection in a smart pointer
     // Wrap the pool using web::data, which boils down to an Arc smart pointer
@@ -120,14 +123,19 @@ pub fn run(
             .route("/newsletters", web::post().to(publish_newsletter))
             //.route("/{name}", web::get().to(greet))
             .route("/", web::get().to(home))
+            .route("/login", web::get().to(login_form))
             .route("/login", web::post().to(login))
             // Get a pointer copy and attach it to the application state
             .app_data(db_pool.clone())
             .app_data(email_client.clone())
             .app_data(base_url.clone())
+            .app_data(Data::new(HmacSecret(hmac_secret.clone())))
     })
     .listen(listener)?
     .run();
     // No .await here
     Ok(server)
 }
+
+#[derive(Clone)]
+pub struct HmacSecret(pub Secret<String>);

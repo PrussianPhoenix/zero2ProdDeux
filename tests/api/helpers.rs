@@ -48,6 +48,8 @@ pub struct TestApp {
     //new field for test only
     pub port: u16,
     pub test_user: TestUser,
+    //define single client instance for every helper method, allows us to store cookies
+    pub api_client: reqwest::Client,
 }
 
 impl TestApp {
@@ -117,6 +119,31 @@ impl TestApp {
             .expect("Failed to create test users.");
         (row.username, row.password_hash)
     }
+
+    pub async fn post_login<Body>(&self, body: &Body) -> reqwest::Response
+    where
+        Body: serde::Serialize,
+        {
+            self.api_client
+                .post(&format!("{}/login", &self.address))
+                // This 'reqwest' method makes sure that the body is URL-encoded
+                // and the 'Content-type' header is set accordingly.
+                .form(body)
+                .send()
+                .await
+                .expect("Failed to execute request.")
+        }
+
+    pub async fn get_login_html(&self) -> String {
+        self.api_client
+            .get(&format!("{}/login", &self.address))
+            .send()
+            .await
+            .expect("Failed to execute request.")
+            .text()
+            .await
+            .unwrap()
+    }
 }
 
 // Launch our application in the background ~somehow~
@@ -175,6 +202,12 @@ pub async fn spawn_app() -> TestApp {
     let application = Application::build(configuration.clone()).await
         .expect("Failed to build application.");
     let application_port = application.port();
+
+    let client= reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .cookie_store(true)
+        .build()
+        .unwrap();
     // Launch the server as a background task
     // tokio::spawn returns a handle to the spawned future,
     // but we have no use for it here, hence the non-binding let
@@ -185,6 +218,7 @@ pub async fn spawn_app() -> TestApp {
         email_server,
         port: application_port,
         test_user: TestUser::generate(),
+        api_client: client,
     };
     test_app.test_user.store(&test_app.db_pool).await;
     test_app
@@ -266,4 +300,10 @@ impl TestUser {
             .await
             .expect("Failed to store test user.");
     }
+}
+
+//little helper function - we will be doing this check several times.
+pub fn assert_is_redirect_to(response: &reqwest::Response, location: &str) {
+    assert_eq!(response.status().as_u16(), 303);
+    assert_eq!(response.headers().get("Location").unwrap(), location);
 }

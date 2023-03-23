@@ -10,6 +10,8 @@ use hmac::{Hmac, Mac};
 use secrecy::ExposeSecret;
 use actix_web::error::InternalError;
 use crate::startup::HmacSecret;
+use actix_web::cookie::Cookie;
+use actix_web_flash_messages::FlashMessage;
 
 #[derive(serde::Deserialize)]
 pub struct FormData {
@@ -19,7 +21,7 @@ pub struct FormData {
 
 //extract authentication module to use in our login function
 #[tracing::instrument(
-    skip(form, pool, secret),
+    skip(form, pool),
     fields(username=tracing::field::Empty, user_id=tracing::field::Empty)
 )]
 // We are now injecting 'PgPool' to retrieve stored credentials from the database
@@ -28,7 +30,8 @@ pub async fn login(
     pool: web::Data<PgPool>,
     //injecting the secret as a secret string for the time being.
     //inject the wrapper type
-    secret: web::Data<HmacSecret>,
+    //dont need hmacsecret anymore
+    //secret: web::Data<HmacSecret>,
 ) -> //Result<HttpResponse, LoginError> {
 Result<HttpResponse, InternalError<LoginError>> {
     let credentials = Credentials {
@@ -52,6 +55,7 @@ Result<HttpResponse, InternalError<LoginError>> {
               LoginError::UnexpectedError(e.into())
             },
             };
+            /*
             let query_string = format!(
                 "error={}",
                 urlencoding::Encoded::new(e.to_string())
@@ -62,12 +66,14 @@ Result<HttpResponse, InternalError<LoginError>> {
                 mac.update(query_string.as_bytes());
                 mac.finalize().into_bytes()
             };
+            */
+            FlashMessage::error(e.to_string()).send();
             let response = HttpResponse::SeeOther()
-            .insert_header((
-                LOCATION,
-                format!("/login?{}&tag={:x}", query_string, hmac_tag),
-            )).finish();
-                Err(InternalError::from_response(e, response))
+                .insert_header((
+                    LOCATION, "/login"))
+                //.insert_header(("Set-Cookie", format!("_flash={e}")))
+                .finish();
+            Err(InternalError::from_response(e, response))
         }
 }
     /* V1 implemenetation pre-secret implementation

@@ -5,3 +5,4 @@ mod subscriptions;
 mod subscriptions_confirm;
 //new test module
 mod newsletter;
+mod login;

@@ -1,8 +1,14 @@
-use actix_web::{HttpResponse,web};
+use std::time;
+use actix_web::{HttpResponse, web};
 use actix_web::http::header::ContentType;
 use crate::startup::HmacSecret;
 use hmac::{Hmac, Mac};
 use secrecy::ExposeSecret;
+use actix_web::HttpRequest;
+use actix_web::cookie::{Cookie, time::Duration};
+use actix_web_flash_messages::{IncomingFlashMessages, Level};
+use std::fmt::Write;
+use std::hash::Hasher;
 
 //extract error from request handler for GET /login
 #[derive(serde::Deserialize)]
@@ -28,14 +34,15 @@ impl QueryParams {
     }
 }
 
-pub async fn login_form(query: Option<web::Query<QueryParams>>,
-            secret: web::Data<HmacSecret>,) -> HttpResponse {
+//No need to access the raw request anymore!
+pub async fn login_form(flash_messages: IncomingFlashMessages) -> HttpResponse {
     /*
     let _error = query.0.error;
     HttpResponse::Ok()
         .content_type(ContentType::html())
         .body(include_str!("login.html"))
     */
+    /*
     let error_html = match query {
         None => "".into(),
         Some(query) => match query.0.verify(&secret) {
@@ -53,8 +60,29 @@ pub async fn login_form(query: Option<web::Query<QueryParams>>,
         },
     };
 
+     */
+
+    /*
+    let error_html = match request.cookie("_flash"){
+        None => "".into(),
+        Some(cookie) => {
+            format!("<p><i>{}</i></p>", cookie.value())
+        }
+    };
+    */
+
+    let mut error_html = String::new();
+    for m in flash_messages.iter().filter(|m| m.level() == Level::Error) {
+        writeln!(error_html, "<p><i>{}</i></p>", m.content()).unwrap();
+    }
+
     HttpResponse::Ok()
         .content_type(ContentType::html())
+        /*
+        .cookie(Cookie::build("_flash", "")
+            .max_age(Duration::ZERO)
+            .finish(),)
+        */
         .body(format!(
             r#"<!DOCTYPE html>
             <html lang="en">
@@ -84,4 +112,9 @@ pub async fn login_form(query: Option<web::Query<QueryParams>>,
                 </body>
                 </html>"#,
         ))
+    /*
+    response.add_removal_cookie(&Cookie::new("_flash", ""))
+        .unwrap();
+    response
+    */
 }

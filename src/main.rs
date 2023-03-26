@@ -13,11 +13,12 @@ async fn greet(req: HttpRequest) -> impl Responder {
     format!("Hello {}!", &name)
 }
 
-use zero2Prod::startup::run;
+//use zero2Prod::startup::run;
 use zero2Prod::startup::Application;
 
 #[tokio::main]
-async fn main() -> std::io::Result<()> {
+//anyhow result now instead of std::io::result/error
+async fn main() -> anyhow::Result<()> {
     let subscriber = get_subscriber("zero2prod".into(), "info".into(), std::io::stdout);
     init_subscriber(subscriber);
 

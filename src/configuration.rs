@@ -9,6 +9,10 @@ pub struct Settings {
     pub database: DatabaseSettings,
     pub application: ApplicationSettings,
     pub email_client: EmailClientSettings,
+    // we have not created a stand-alone settings struct for redis,
+    //lets see if we need more than the uri first!
+    // the uri is marked as secret because it may embed a password.
+    pub redis_uri: Secret<String>,
 }
 
 #[derive(serde::Deserialize, Clone)]

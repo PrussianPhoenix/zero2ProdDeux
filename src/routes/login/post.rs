@@ -12,6 +12,7 @@ use actix_web::error::InternalError;
 use crate::startup::HmacSecret;
 use actix_web::cookie::Cookie;
 use actix_web_flash_messages::FlashMessage;
+use actix_session::Session;
 
 #[derive(serde::Deserialize)]
 pub struct FormData {
@@ -21,7 +22,7 @@ pub struct FormData {
 
 //extract authentication module to use in our login function
 #[tracing::instrument(
-    skip(form, pool),
+    skip(form, pool, session),
     fields(username=tracing::field::Empty, user_id=tracing::field::Empty)
 )]
 // We are now injecting 'PgPool' to retrieve stored credentials from the database
@@ -32,6 +33,7 @@ pub async fn login(
     //inject the wrapper type
     //dont need hmacsecret anymore
     //secret: web::Data<HmacSecret>,
+    session: Session,
 ) -> //Result<HttpResponse, LoginError> {
 Result<HttpResponse, InternalError<LoginError>> {
     let credentials = Credentials {
@@ -44,8 +46,11 @@ Result<HttpResponse, InternalError<LoginError>> {
         Ok(user_id) => {
             tracing::Span::current()
                 .record("user_id", &tracing::field::display(&user_id));
+            session.renew();
+            session.insert("user_id", user_id)
+                .map_err(|e| login_redirect(LoginError::UnexpectedError(e.into())))?;
             Ok(HttpResponse::SeeOther()
-                .insert_header((LOCATION, "/"))
+                .insert_header((LOCATION, "/admin/dashboard"))
                 .finish())
         }
         Err(e) => {
@@ -67,13 +72,8 @@ Result<HttpResponse, InternalError<LoginError>> {
                 mac.finalize().into_bytes()
             };
             */
-            FlashMessage::error(e.to_string()).send();
-            let response = HttpResponse::SeeOther()
-                .insert_header((
-                    LOCATION, "/login"))
-                //.insert_header(("Set-Cookie", format!("_flash={e}")))
-                .finish();
-            Err(InternalError::from_response(e, response))
+
+            Err(login_redirect(e))
         }
 }
     /* V1 implemenetation pre-secret implementation
@@ -96,6 +96,17 @@ Result<HttpResponse, InternalError<LoginError>> {
             .finish())
 
      */
+}
+
+fn login_redirect(e: LoginError) -> InternalError<LoginError> {
+    FlashMessage::error(e.to_string()).send();
+    let response = HttpResponse::SeeOther()
+        .insert_header((
+            LOCATION, "/login"))
+        //.insert_header(("Set-Cookie", format!("_flash={e}")))
+        .finish();
+    InternalError::from_response(e, response)
+
 }
 
 #[derive(thiserror::Error)]

@@ -2,6 +2,7 @@
 application:
   port : 8000
   hmac_secret: "long-and-very-secret-random-key-needed-to-verify-message-integrity"
+
 database:
   host: "localhost"
   port: 5432
@@ -18,3 +19,6 @@ email_client:
   # (given that it's a sensitive secret!)
   authorization_token: "my-secret-token"
   timeout_milliseconds: 10000
+
+#6379 is the default redis port
+redis_uri: "redis://127.0.0.1:6379"

@@ -4,7 +4,7 @@ use std::net::TcpListener;
 use sqlx::{PgPool};
 use tracing_actix_web::TracingLogger;
 
-use crate::routes::{health_check, send_confirmation_email, subscribe, publish_newsletter, change_password_form, change_password};
+use crate::routes::{health_check, send_confirmation_email, subscribe, publish_newsletter, publish_newsletter_form,change_password_form, change_password};
 use actix_web::{ HttpRequest, Responder};
 use actix_web::web::Data;
 use crate::email_client::EmailClient;
@@ -142,17 +142,18 @@ async fn run(
             // A new entry in our routing table for POST /subscriptions requests
             .route("/subscriptions", web::post().to(subscribe))
             .route("/subscriptions/confirm", web::get().to(confirm))
-            .route("/newsletters", web::post().to(publish_newsletter))
             //.route("/{name}", web::get().to(greet))
             .route("/", web::get().to(home))
             .route("/login", web::get().to(login_form))
             .route("/login", web::post().to(login))
             .service(web::scope("/admin")
                 .wrap(from_fn(reject_anonymous_users))
-                .route("/admin/dashboard", web::get().to(admin_dashboard))
-                .route("/admin/password", web::get().to(change_password_form))
-                .route("/admin/password", web::post().to(change_password))
-                .route("/admin/logout", web::post().to(log_out)),
+                .route("/dashboard", web::get().to(admin_dashboard))
+                .route("/password", web::get().to(change_password_form))
+                .route("/password", web::post().to(change_password))
+                .route("/logout", web::post().to(log_out))
+                .route("/newsletters", web::get().to(publish_newsletter_form))
+                .route("/newsletters", web::post().to(publish_newsletter))
             )
             // Get a pointer copy and attach it to the application state
             .app_data(db_pool.clone())

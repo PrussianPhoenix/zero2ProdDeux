@@ -95,21 +95,30 @@ impl TestApp {
         }
     }
 
-    pub async fn post_newsletters(
-        &self,
-        body: serde_json::Value
-    ) -> reqwest::Response {
-        reqwest::Client::new()
-            .post(&format!("{}/newsletters", &self.address))
-            // random credentials
-            // 'reqwest' does all the encoding/formatting heavy-lifting
-            //.basic_auth(Uuid::new_v4().to_string(), Some(Uuid::new_v4().to_string()))
-            .basic_auth(&self.test_user.username, Some(&self.test_user.password))
-            .json(&body)
+    pub async fn get_publish_newsletter(&self) -> reqwest::Response {
+        self.api_client
+            .get(&format!("{}/admin/newsletters", &self.address))
             .send()
             .await
             .expect("Failed to execute request.")
     }
+
+    pub async fn get_publish_newsletter_html(&self) -> String {
+        self.get_publish_newsletter().await.text().await.unwrap()
+    }
+
+    pub async fn post_publish_newsletter<Body>(&self, body: &Body) -> reqwest::Response
+        where
+            Body: serde::Serialize,
+    {
+        self.api_client
+            .post(&format!("{}/admin/newsletters", &self.address))
+            .form(body)
+            .send()
+            .await
+            .expect("Failed to execute request.")
+    }
+
 
     //retrieve username and password
     pub async fn test_user(&self) -> (String, String) {
@@ -346,6 +355,15 @@ impl TestUser {
             .await
             .expect("Failed to store test user.");
     }
+
+    pub async fn login(&self, app: &TestApp) {
+        app.post_login(&serde_json::json!({
+            "username": &self.username,
+            "password": &self.password
+        }))
+            .await;
+    }
+
 }
 
 //little helper function - we will be doing this check several times.

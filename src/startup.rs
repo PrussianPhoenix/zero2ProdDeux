@@ -4,7 +4,7 @@ use std::net::TcpListener;
 use sqlx::{PgPool};
 use tracing_actix_web::TracingLogger;
 
-use crate::routes::{health_check, send_confirmation_email, subscribe, publish_newsletter};
+use crate::routes::{health_check, send_confirmation_email, subscribe, publish_newsletter, change_password_form, change_password};
 use actix_web::{ HttpRequest, Responder};
 use actix_web::web::Data;
 use crate::email_client::EmailClient;
@@ -24,6 +24,10 @@ use actix_web::cookie::Key;
 use actix_session::SessionMiddleware;
 use actix_session::storage::RedisSessionStore;
 use crate::routes::admin_dashboard;
+use crate::routes::log_out;
+
+use crate::authentication::reject_anonymous_users;
+use actix_web_lab::middleware::from_fn;
 
 
 // We need to mark `run` as public.
@@ -143,7 +147,13 @@ async fn run(
             .route("/", web::get().to(home))
             .route("/login", web::get().to(login_form))
             .route("/login", web::post().to(login))
-            .route("/admin/dashboard", web::get().to(admin_dashboard))
+            .service(web::scope("/admin")
+                .wrap(from_fn(reject_anonymous_users))
+                .route("/admin/dashboard", web::get().to(admin_dashboard))
+                .route("/admin/password", web::get().to(change_password_form))
+                .route("/admin/password", web::post().to(change_password))
+                .route("/admin/logout", web::post().to(log_out)),
+            )
             // Get a pointer copy and attach it to the application state
             .app_data(db_pool.clone())
             .app_data(email_client.clone())

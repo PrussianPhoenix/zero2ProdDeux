@@ -1,11 +1,14 @@
 use actix_web::{HttpResponse, web};
-use actix_session::Session;
+use crate::session_state::TypedSession;
 use uuid::Uuid;
 
 use actix_web::http::header::ContentType;
 use anyhow::Context;
 use sqlx::PgPool;
 
+use actix_web::http::header::LOCATION;
+use crate::utils::e500;
+/*
 // return an opaque 500 error while preserving the errors root cause for logging
 fn e500<T>(e: T) -> actix_web::Error
 where
@@ -13,18 +16,19 @@ where
 {
     actix_web::error::ErrorInternalServerError(e)
 }
-
+*/
 pub async fn admin_dashboard(
-    session: Session,
+    session: TypedSession,
     pool: web::Data<PgPool>,
 ) -> Result<HttpResponse, actix_web::Error> {
     let username = if let Some(user_id) = session
-        .get::<Uuid>("user_id")
+        .get_user_id()
         .map_err(e500)?
     {
         get_username(user_id, &pool).await.map_err(e500)?
     } else {
-        todo!()
+        return Ok(HttpResponse::SeeOther().insert_header((LOCATION, "/login"))
+            .finish());
     };
     Ok(HttpResponse::Ok()
         .content_type(ContentType::html())
@@ -36,14 +40,24 @@ pub async fn admin_dashboard(
                 <title>Admin dashboard</title>
             </head>
             <body>
-                <p> Welcome {username}!</p>
+                <p>Welcome {username}!</p>
+                <p>Available actions:</p>
+                <ol>
+                    <li><a href="/admin/password">Change password</a></li>
+                    <li>
+                        <form name="logoutForm" action="/admin/logout" method="post">
+                            <input type="submit" value="Logout">
+                        </form>
+                    </li>
+                    <li><a href="/admin/newsletter">Send a newsletter issue</a></li>
+                </ol>
             </body>
             </html>"#
         )))
 }
 
 #[tracing::instrument(name = "Get username", skip(pool))]
-async fn get_username(
+pub async fn get_username(
     user_id: Uuid,
     pool: &PgPool,
 ) -> Result<String, anyhow::Error> {

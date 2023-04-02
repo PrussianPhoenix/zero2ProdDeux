@@ -13,6 +13,7 @@ use crate::startup::HmacSecret;
 use actix_web::cookie::Cookie;
 use actix_web_flash_messages::FlashMessage;
 use actix_session::Session;
+use crate::session_state::TypedSession;
 
 #[derive(serde::Deserialize)]
 pub struct FormData {
@@ -33,7 +34,7 @@ pub async fn login(
     //inject the wrapper type
     //dont need hmacsecret anymore
     //secret: web::Data<HmacSecret>,
-    session: Session,
+    session: TypedSession,
 ) -> //Result<HttpResponse, LoginError> {
 Result<HttpResponse, InternalError<LoginError>> {
     let credentials = Credentials {
@@ -47,7 +48,7 @@ Result<HttpResponse, InternalError<LoginError>> {
             tracing::Span::current()
                 .record("user_id", &tracing::field::display(&user_id));
             session.renew();
-            session.insert("user_id", user_id)
+            session.insert_user_id( user_id)
                 .map_err(|e| login_redirect(LoginError::UnexpectedError(e.into())))?;
             Ok(HttpResponse::SeeOther()
                 .insert_header((LOCATION, "/admin/dashboard"))

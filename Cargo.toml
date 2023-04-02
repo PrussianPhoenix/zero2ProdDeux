@@ -52,6 +52,7 @@ hex = "0.4"
 actix-web-flash-messages = {version = "0.4", features = ["cookies"]}
 actix-session = {version = "0.7", features = ["redis-rs-tls-session"]}
 uuid = { version = "1", features = ["v4", "serde"]}
+actix-web-lab = "0.18.0"
 
 # We need the optional `derive` feature to use `serde`'s procedural macros:
 # `#[derive(Serialize)]` and `#[derive(Deserialize)]`.
